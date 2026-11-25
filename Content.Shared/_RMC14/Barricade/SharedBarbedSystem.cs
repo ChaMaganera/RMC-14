@@ -2,6 +2,7 @@ using Content.Shared._RMC14.Armor;
 using Content.Shared._RMC14.Barricade.Components;
 using Content.Shared._RMC14.Construction.Upgrades;
 using Content.Shared._RMC14.Xenonids.Leap;
+using Content.Shared._RMC14.Xenonids.Lunge;
 using Content.Shared._RMC14.Xenonids.Acid;
 using Content.Shared.Climbing.Events;
 using Content.Shared.Damage;
@@ -53,6 +54,7 @@ public abstract class SharedBarbedSystem : EntitySystem
         SubscribeLocalEvent<BarbedComponent, CMGetArmorPiercingEvent>(OnGetArmorPiercing);
         SubscribeLocalEvent<BarbedComponent, RMCConstructionUpgradedEvent>(OnConstructionUpgraded);
         SubscribeLocalEvent<BarbedComponent, XenoLeapHitAttempt>(OnXenoLeapHitAttempt, after: new[] { typeof(XenoLeapSystem) });
+        SubscribeLocalEvent<BarbedComponent, XenoLungeHitAttempt>(OnXenoLungeHitAttempt, after: new[] { typeof(XenoLungeSystem) });
     }
 
     private void OnExamined(Entity<BarbedComponent> ent, ref ExaminedEvent args)
@@ -229,6 +231,14 @@ public abstract class SharedBarbedSystem : EntitySystem
             return;
 
         _damageableSystem.TryChangeDamage(args.Leaper, ent.Comp.ThornsDamage, origin: ent, tool: ent);
+    }
+
+    private void OnXenoLungeHitAttempt(Entity<BarbedComponent> ent, ref XenoLungeHitAttempt args)
+    {
+        if (!ent.Comp.IsBarbed)
+            return;
+
+        _damageableSystem.TryChangeDamage(args.Lunging, ent.Comp.ThornsDamage, origin: ent, tool: ent);
     }
 
     protected void UpdateBarricade(Entity<BarbedComponent> barbed, bool updateBarbed = false)

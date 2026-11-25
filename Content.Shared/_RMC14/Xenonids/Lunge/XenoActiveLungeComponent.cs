@@ -1,11 +1,12 @@
 ﻿using System.Numerics;
+using Content.Shared._RMC14.Pulling;
 using Robust.Shared.GameStates;
 using Robust.Shared.Map;
 
 namespace Content.Shared._RMC14.Xenonids.Lunge;
 
 [RegisterComponent, NetworkedComponent, AutoGenerateComponentState]
-[Access(typeof(XenoLungeSystem))]
+[Access(typeof(XenoLungeSystem), typeof(RMCPullingSystem))]
 public sealed partial class XenoActiveLungeComponent : Component
 {
     [DataField, AutoNetworkedField]
@@ -25,4 +26,18 @@ public sealed partial class XenoActiveLungeComponent : Component
 
     [DataField, AutoNetworkedField]
     public TimeSpan StunTime;
+
+    [DataField, AutoNetworkedField]
+    public bool BarbedBlocked;
+
+    [DataField, AutoNetworkedField]
+    public float DistanceToBypassBarbedBarricade = 1.25f;
+
+    [DataField, AutoNetworkedField]
+    public float TargetDistance;
+
+    [DataField, AutoNetworkedField]
+    public float NearestBarbedDistance = float.MaxValue;
+
+    public bool AllowPullThroughBarbedBarricade;
 }

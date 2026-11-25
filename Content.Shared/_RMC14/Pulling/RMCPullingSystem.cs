@@ -6,6 +6,7 @@ using Content.Shared._RMC14.Weapons.Melee;
 using Content.Shared._RMC14.Xenonids;
 using Content.Shared._RMC14.Xenonids.Crest;
 using Content.Shared._RMC14.Xenonids.Fortify;
+using Content.Shared._RMC14.Xenonids.Lunge;
 using Content.Shared._RMC14.Xenonids.Parasite;
 using Content.Shared.ActionBlocker;
 using Content.Shared.Buckle.Components;
@@ -331,6 +332,10 @@ public sealed class RMCPullingSystem : EntitySystem
         if (args.PullerUid != ent.Owner)
             return;
 
+        if (TryComp(ent.Owner, out XenoActiveLungeComponent? activeLunge) &&
+            activeLunge.AllowPullThroughBarbedBarricade)
+            return;
+
         if (ent.Comp.NextAttack > _timing.CurTime)
             args.Cancelled = true;
 
@@ -504,7 +509,7 @@ public sealed class RMCPullingSystem : EntitySystem
             args.Range = 4.0f;
         }
     }
-    
+
     public override void Update(float frameTime)
     {
         var blockDeadActive = EntityQueryEnumerator<BlockPullingDeadActiveComponent, PullerComponent>();
