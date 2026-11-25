@@ -34,10 +34,10 @@ public sealed partial class XenoActiveLungeComponent : Component
     public float DistanceToBypassBarbedBarricade = 1.25f;
 
     [DataField, AutoNetworkedField]
-    public float TargetDistance;
+    public float DistanceBetweenBarbedBarricadeAndTarget;
 
     [DataField, AutoNetworkedField]
-    public float NearestBarbedDistance = float.MaxValue;
+    public EntityUid? BarbedBarricade;
 
     public bool AllowPullThroughBarbedBarricade;
 }

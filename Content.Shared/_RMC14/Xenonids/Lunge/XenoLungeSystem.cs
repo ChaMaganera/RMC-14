@@ -128,8 +128,7 @@ public sealed class XenoLungeSystem : EntitySystem
         var diff = targetMapCoordinates.Position - origin.Position;
         var targetDistance = diff.Length();
         var direction = diff.Normalized();
-        var nearestBarbedDistance = float.MaxValue;
-        Vector2? nearestBarbedHitPosition = null;
+        RayCastResults? nearestBarbedHit = null;
         diff = direction * xeno.Comp.Range;
 
         if (_net.IsServer)
@@ -143,18 +142,17 @@ public sealed class XenoLungeSystem : EntitySystem
             );
             foreach (var result in results)
             {
-                if (result.Distance >= nearestBarbedDistance ||
+                if ((nearestBarbedHit is { } nearest && result.Distance >= nearest.Distance) ||
                     !HasComp<BarricadeComponent>(result.HitEntity) ||
                     !TryComp<BarbedComponent>(result.HitEntity, out var barbed) ||
                     !barbed.IsBarbed)
                     continue;
-                nearestBarbedDistance = result.Distance;
-                nearestBarbedHitPosition = result.HitPos;
+                nearestBarbedHit = result;
             }
-            if (nearestBarbedHitPosition != null)
+            if (nearestBarbedHit is { } barbedHit)
             {
-                diff = nearestBarbedHitPosition.Value - origin.Position - direction * 0.5f;
-                if (nearestBarbedDistance <= 0.5f)
+                diff = barbedHit.HitPos - origin.Position - direction * 0.5f;
+                if (barbedHit.Distance <= 0.5f)
                     diff = Vector2.Zero;
             }
         }
@@ -165,8 +163,11 @@ public sealed class XenoLungeSystem : EntitySystem
         active.TargetCoordinates = targetMapCoordinates;
         active.Range = xeno.Comp.Range;
         active.StunTime = xeno.Comp.StunTime;
-        active.TargetDistance = targetDistance;
-        active.NearestBarbedDistance = nearestBarbedDistance;
+        active.BarbedBlocked = false;
+        active.DistanceBetweenBarbedBarricadeAndTarget = nearestBarbedHit is { } nearestHit
+            ? targetDistance - nearestHit.Distance
+            : 0f;
+        active.BarbedBarricade = nearestBarbedHit?.HitEntity;
         Dirty(xeno);
 
         _rmcObstacleSlamming.MakeImmune(xeno, 0.5f);
@@ -226,6 +227,17 @@ public sealed class XenoLungeSystem : EntitySystem
     {
         if (!Resolve(xeno, ref xeno.Comp, false))
             return false;
+
+        if (xeno.Comp.BarbedBarricade is { } barricade &&
+            xeno.Comp.DistanceBetweenBarbedBarricadeAndTarget >= xeno.Comp.DistanceToBypassBarbedBarricade &&
+            !xeno.Comp.BarbedBlocked &&
+            HasComp<BarricadeComponent>(barricade) &&
+            TryComp<BarbedComponent>(barricade, out var detectedBarbed) &&
+            detectedBarbed.IsBarbed)
+        {
+            HandleBarbedBarricadeHit((xeno.Owner, xeno.Comp), barricade);
+            return true;
+        }
 
         if (_mobState.IsDead(targetId))
             return false;
@@ -320,7 +332,7 @@ public sealed class XenoLungeSystem : EntitySystem
     }
     private void HandleBarbedBarricadeHit(Entity<XenoActiveLungeComponent> xeno, EntityUid barricade)
     {
-        if (xeno.Comp.BarbedBlocked || xeno.Comp.TargetDistance - xeno.Comp.NearestBarbedDistance < xeno.Comp.DistanceToBypassBarbedBarricade)
+        if (xeno.Comp.BarbedBlocked || xeno.Comp.DistanceBetweenBarbedBarricadeAndTarget < xeno.Comp.DistanceToBypassBarbedBarricade)
             return;
 
         xeno.Comp.BarbedBlocked = true;
