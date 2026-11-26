@@ -332,10 +332,6 @@ public sealed class RMCPullingSystem : EntitySystem
         if (args.PullerUid != ent.Owner)
             return;
 
-        if (TryComp(ent.Owner, out XenoActiveLungeComponent? activeLunge) &&
-            activeLunge.AllowPullThroughBarbedBarricade)
-            return;
-
         if (ent.Comp.NextAttack > _timing.CurTime)
             args.Cancelled = true;
 
@@ -343,6 +339,10 @@ public sealed class RMCPullingSystem : EntitySystem
         var attackEvent = new LightAttackEvent(GetNetEntity(pulledUid), GetNetEntity(ent), GetNetCoordinates(pulledUid.ToCoordinates()));
         if (_rmcMelee.AttemptOverrideAttack(pulledUid, ent, ent, attackEvent, out var attack, out var cancelled, BarricadeCheckRange))
         {
+            if (TryComp(ent.Owner, out XenoActiveLungeComponent? activeLunge) &&
+            activeLunge.AllowPullThroughBarbedBarricade)
+                return;
+
             if (attack is LightAttackEvent { Target: not null } light)
             {
                 var target = GetEntity(light.Target.Value);
