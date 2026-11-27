@@ -28,7 +28,7 @@ public sealed partial class XenoActiveLungeComponent : Component
     public TimeSpan StunTime;
 
     [DataField, AutoNetworkedField]
-    public bool BarbedBlocked;
+    public bool LungeHasBeenBlockedByBarbedBarricade;
 
     [DataField, AutoNetworkedField]
     public float DistanceToBypassBarbedBarricade = 1.25f;

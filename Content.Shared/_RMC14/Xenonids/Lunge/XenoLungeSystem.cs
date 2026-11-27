@@ -1,6 +1,5 @@
 using System.Linq;
 using System.Numerics;
-using Content.Shared._RMC14.Barricade;
 using Content.Shared._RMC14.Barricade.Components;
 using Content.Shared._RMC14.Damage.ObstacleSlamming;
 using Content.Shared._RMC14.Entrenching;
@@ -24,12 +23,9 @@ using Robust.Shared.Audio.Systems;
 using Robust.Shared.Network;
 using Robust.Shared.Physics;
 using Robust.Shared.Physics.Components;
-using Robust.Shared.Physics.Events;
 using Robust.Shared.Physics.Systems;
-using Robust.Shared.Map;
 using Robust.Shared.Player;
 using Robust.Shared.Timing;
-
 
 namespace Content.Shared._RMC14.Xenonids.Lunge;
 
@@ -135,25 +131,23 @@ public sealed class XenoLungeSystem : EntitySystem
         {
             var results = _physics.IntersectRay(
                 origin.MapId,
-                new CollisionRay(origin.Position, direction, (int) CollisionGroup.BarbedBarricade),
+                new CollisionRay(origin.Position, direction, (int)CollisionGroup.BarbedBarricade),
                 diff.Length(),
                 xeno.Owner,
                 false
             );
             foreach (var result in results)
             {
-                if ((nearestBarbedHit is { } nearest && result.Distance >= nearest.Distance) ||
+                if (nearestBarbedHit != null && result.Distance >= nearestBarbedHit.Value.Distance ||
                     !HasComp<BarricadeComponent>(result.HitEntity) ||
                     !TryComp<BarbedComponent>(result.HitEntity, out var barbed) ||
                     !barbed.IsBarbed)
                     continue;
                 nearestBarbedHit = result;
             }
-            if (nearestBarbedHit is { } barbedHit)
+            if (nearestBarbedHit != null)
             {
-                diff = barbedHit.HitPos - origin.Position - direction * 0.5f;
-                if (barbedHit.Distance <= 0.5f)
-                    diff = Vector2.Zero;
+                diff = nearestBarbedHit.Value.HitPos - origin.Position - direction * 0.5f;
             }
         }
 
@@ -163,10 +157,9 @@ public sealed class XenoLungeSystem : EntitySystem
         active.TargetCoordinates = targetMapCoordinates;
         active.Range = xeno.Comp.Range;
         active.StunTime = xeno.Comp.StunTime;
-        active.BarbedBlocked = false;
-        active.DistanceBetweenBarbedBarricadeAndTarget = nearestBarbedHit is { } nearestHit
-            ? targetDistance - nearestHit.Distance
-            : 0f;
+        active.LungeHasBeenBlockedByBarbedBarricade = false;
+        if (nearestBarbedHit.HasValue)
+            active.DistanceBetweenBarbedBarricadeAndTarget = targetDistance - nearestBarbedHit.Value.Distance;
         active.BarbedBarricade = nearestBarbedHit?.HitEntity;
         Dirty(xeno);
 
@@ -228,14 +221,14 @@ public sealed class XenoLungeSystem : EntitySystem
         if (!Resolve(xeno, ref xeno.Comp, false))
             return false;
 
-        if (xeno.Comp.BarbedBarricade is { } barricade &&
+        if (xeno.Comp.BarbedBarricade != null &&
             xeno.Comp.DistanceBetweenBarbedBarricadeAndTarget >= xeno.Comp.DistanceToBypassBarbedBarricade &&
-            !xeno.Comp.BarbedBlocked &&
-            HasComp<BarricadeComponent>(barricade) &&
-            TryComp<BarbedComponent>(barricade, out var detectedBarbed) &&
+            !xeno.Comp.LungeHasBeenBlockedByBarbedBarricade &&
+            HasComp<BarricadeComponent>(xeno.Comp.BarbedBarricade) &&
+            TryComp<BarbedComponent>(xeno.Comp.BarbedBarricade, out var detectedBarbed) &&
             detectedBarbed.IsBarbed)
         {
-            HandleBarbedBarricadeHit((xeno.Owner, xeno.Comp), barricade);
+            HandleBarbedBarricadeHit((xeno.Owner, xeno.Comp), xeno.Comp.BarbedBarricade.Value);
             return true;
         }
 
@@ -332,10 +325,10 @@ public sealed class XenoLungeSystem : EntitySystem
     }
     private void HandleBarbedBarricadeHit(Entity<XenoActiveLungeComponent> xeno, EntityUid barricade)
     {
-        if (xeno.Comp.BarbedBlocked || xeno.Comp.DistanceBetweenBarbedBarricadeAndTarget < xeno.Comp.DistanceToBypassBarbedBarricade)
+        if (xeno.Comp.LungeHasBeenBlockedByBarbedBarricade || xeno.Comp.DistanceBetweenBarbedBarricadeAndTarget < xeno.Comp.DistanceToBypassBarbedBarricade)
             return;
 
-        xeno.Comp.BarbedBlocked = true;
+        xeno.Comp.LungeHasBeenBlockedByBarbedBarricade = true;
         Dirty(xeno);
 
         var ev = new XenoLungeHitAttempt(xeno);
@@ -393,15 +386,11 @@ public sealed class XenoLungeSystem : EntitySystem
 
     private void StopLunge(EntityUid lunging)
     {
-        if (_physicsQuery.TryGetComponent(lunging, out var physics))
-        {
-            _physics.ResetDynamics(lunging, physics);
-            _physics.SetLinearVelocity(lunging, Vector2.Zero, body: physics);
-            _physics.SetAngularVelocity(lunging, 0f, body: physics);
-            _physics.SetBodyStatus(lunging, physics, BodyStatus.OnGround);
-        }
+        if (!_physicsQuery.TryGetComponent(lunging, out var physics))
+            return;
 
-        RemCompDeferred<XenoActiveLungeComponent>(lunging);
+        _physics.SetLinearVelocity(lunging, Vector2.Zero, body: physics);
+        _physics.SetBodyStatus(lunging, physics, BodyStatus.OnGround);
     }
 
     public override void Update(float frameTime)
